@@ -115,7 +115,7 @@ class GameEventHandler:
             self.next_blob_spawn = 5
 
             # Load the AI into the game
-            pkl_file = "genome.pkl"
+            pkl_file = os.path.join(os.path.dirname(__file__), "genome.pkl")
             if os.path.exists(pkl_file):
                 with open(pkl_file, "rb") as f:
                     self.genome = pickle.load(f)
@@ -212,12 +212,12 @@ class GameEventHandler:
         winner = population.run(self.eval_genomes, 100)
 
         # If the program is terminated at the last generation, don't show the results
-        if not self.has_exit:
+        if not self.user_exit:
             # Print the genome that performed the best
             print(f"\nBest genome:\n{winner}")
 
             # If the .pkl file exists, save the best genome
-            pkl_file = "genome.pkl"
+            pkl_file = os.path.join(os.path.dirname(__file__), "genome.pkl")
             if os.path.exists(pkl_file):
                 # Get the current genome saved in the .pkl file
                 with open(pkl_file, "rb") as f:
