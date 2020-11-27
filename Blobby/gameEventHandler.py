@@ -61,12 +61,13 @@ class GameEventHandler:
             batch=self.hud_batch
         )
 
-        # Lists of objects
+        # The player's blob will be stored separately from its label 
         self.player = None
-        self.blobs = []
-        self.blob_labels = []
-        self.neural_nets = []
-        self.genomes = []
+
+        # The blob NPCs will be represented similarly, but all in one dictionary
+        self.blobs = {}
+
+        # List of food items
         self.foods = []
 
         # Locate the NEAT configuration file
@@ -261,40 +262,34 @@ class GameEventHandler:
                         valid_coordinates = False
              
             # Check all the blobs to ensure the coordinates aren't too close to them
-            for blob in self.blobs:
+            for blob in self.blobs.keys():
                 if self.distance(blob.x, blob.y, x, y) < 50:
                     valid_coordinates = False
-                
-            # Append the blob if the coordinates are valid
+            
+            # Add the blob if the coordinates are valid
             if valid_coordinates:
-                self.blobs.append(
-                    Blob(
-                        x=x,
-                        y=y,
-                        mass=random_mass,
-                        segments=50,
-                        color=(255, 0, 0),
-                        batch=self.blob_batch
-                    )
+                blob = Blob(
+                    x=x,
+                    y=y,
+                    mass=random_mass,
+                    neural_net=neural_net,
+                    genome=genome,
+                    segments=50,
+                    color=(255, 0, 0),
+                    batch=self.blob_batch
                 )
 
                 # Create its associated label
-                self.blob_labels.append(
-                    Label(
-                        f"{random_mass}",
-                        font_name="Times New Roman",
-                        font_size=sqrt(10 * random_mass / pi) * 0.6,
-                        x=x,
-                        y=y,
-                        anchor_x="center",
-                        anchor_y="center",
-                        batch=self.label_batch
-                    )
+                self.blobs[blob] = Label(
+                    f"{random_mass}",
+                    font_name="Times New Roman",
+                    font_size=sqrt(10 * random_mass / pi) * 0.6,
+                    x=x,
+                    y=y,
+                    anchor_x="center",
+                    anchor_y="center",
+                    batch=self.label_batch
                 )
-
-                # Create the genome and its neural network
-                self.neural_nets.append(neural_net)
-                self.genomes.append(genome)
 
                 # Terminate the while loop
                 blob_created = True
@@ -320,7 +315,7 @@ class GameEventHandler:
                         valid_coordinates = False
              
             # Check all the blobs to ensure the coordinates aren't too close to them
-            for blob in self.blobs:
+            for blob in self.blobs.keys():
                 if self.distance(blob.x, blob.y, x, y) < 25:
                     valid_coordinates = False
             
@@ -413,13 +408,10 @@ class GameEventHandler:
     def update(self, dt):
         # Add to the set indices of blobs that have been killed
         dead_blobs = set()
-        dead_blob_labels = set()
-        dead_neural_nets = set()
-        dead_genomes = set()
 
         # If the player exists, check for collisions between the player and the other blobs
         if self.player:
-            for blob, label, neural_net, genome in zip(self.blobs, self.blob_labels, self.neural_nets, self.genomes):
+            for blob in self.blobs.keys():
                 if self.player and self.distance(self.player.x, self.player.y, blob.x, blob.y) < self.player.radius + blob.radius:
                     # The largest of the two will consume the other.
                     # If they're the same size, delete both of them 
@@ -438,15 +430,12 @@ class GameEventHandler:
 
                         # Add the blob to the set of dead blobs
                         dead_blobs.add(blob)
-                        dead_blob_labels.add(label)
-                        dead_neural_nets.add(neural_net)
-                        dead_genomes.add(genome)
                     elif self.player.mass < blob.mass:
                         # Update the player's mass and label
                         blob.mass += self.player.mass // 2
-                        label.text = f"{blob.mass}"
-                        label.font_size = blob.radius * 0.6
-                        genome.kill_timer = 10 # Reset the kill timer
+                        self.blobs[blob].text = f"{blob.mass}"
+                        self.blobs[blob].font_size = blob.radius * 0.6
+                        blob.genome.kill_timer = 10 # Reset the kill timer
 
                         # Make sure the blob remains completely on the screen
                         self.adjust_blob_position(blob)
@@ -459,9 +448,6 @@ class GameEventHandler:
                     else:
                         # Delete the blob
                         dead_blobs.add(blob)
-                        dead_blob_labels.add(label)
-                        dead_neural_nets.add(neural_net)
-                        dead_genomes.add(genome)
 
                         # Delete the player and the associated label
                         # Python GC will handle the objects once the reference is removed
@@ -470,86 +456,64 @@ class GameEventHandler:
                         self.player_label = None
         
         # Check for collisions among the blobs
-        for blob_1, blob_2 in combinations(self.blobs, 2):
+        for blob_1, blob_2 in combinations(self.blobs.keys(), 2):
             if self.distance(blob_1.x, blob_1.y, blob_2.x, blob_2.y) < blob_1.radius + blob_2.radius:
-                # Get the indices of both blobs
-                blob_1_index = self.blobs.index(blob_1)
-                blob_2_index = self.blobs.index(blob_2)
-
                 # The largest of the two will consume the other.
                 # If they're the same size, delete both of them
                 if blob_1.mass > blob_2.mass:
                     # Update the larger blob's mass and its associated label
                     blob_1.mass += blob_2.mass // 2
-                    self.blob_labels[blob_1_index].text = f"{blob_1.mass}"
-                    self.blob_labels[blob_1_index].font_size = blob_1.radius * 0.6
-                    self.genomes[blob_1_index].kill_timer = 10 # Reset the kill timer
+                    self.blobs[blob_1].text = f"{blob_1.mass}"
+                    self.blobs[blob_1].font_size = blob_1.radius * 0.6
+                    blob_1.genome.kill_timer = 10 # Reset the kill timer
 
                     # Make sure the larger blob remains completely on the screen
                     self.adjust_blob_position(blob_1)
 
                     # Add the smaller blob's index to the set of dead blobs
-                    dead_blobs.add(self.blobs[blob_2_index])
-                    dead_blob_labels.add(self.blob_labels[blob_2_index])
-                    dead_neural_nets.add(self.neural_nets[blob_2_index])
-                    dead_genomes.add(self.genomes[blob_2_index])
+                    dead_blobs.add(blob_2)
                 elif blob_1.mass < blob_2.mass:
                     # Update the blob's mass and its associated label
                     blob_2.mass += blob_1.mass // 2
-                    self.blob_labels[blob_2_index].text = f"{blob_2.mass}"
-                    self.blob_labels[blob_2_index].font_size = blob_2.radius * 0.6
-                    self.genomes[blob_2_index].kill_timer = 10 # Reset the kill timer
+                    self.blobs[blob_2].text = f"{blob_2.mass}"
+                    self.blobs[blob_2].font_size = blob_2.radius * 0.6
+                    blob_2.genome.kill_timer = 10 # Reset the kill timer
 
                     # Make sure the larger blob remains completely on the screen
                     self.adjust_blob_position(blob_2)
 
                     # Add the smaller blob's index to the set of dead blobs
-                    dead_blobs.add(self.blobs[blob_1_index])
-                    dead_blob_labels.add(self.blob_labels[blob_1_index])
-                    dead_neural_nets.add(self.neural_nets[blob_1_index])
-                    dead_genomes.add(self.genomes[blob_1_index])
+                    dead_blobs.add(blob_1)
                 else:
                     # Add both blobs' indices to the set of dead blobs
-                    dead_blobs.add(self.blobs[blob_1_index])
-                    dead_blobs.add(self.blobs[blob_2_index])
-                    dead_blob_labels.add(self.blob_labels[blob_1_index])
-                    dead_blob_labels.add(self.blob_labels[blob_2_index])
-                    dead_neural_nets.add(self.neural_nets[blob_1_index])
-                    dead_neural_nets.add(self.neural_nets[blob_2_index])
-                    dead_genomes.add(self.genomes[blob_1_index])
-                    dead_genomes.add(self.genomes[blob_2_index])
+                    dead_blobs.add(blob_1)
+                    dead_blobs.add(blob_2)
         
         # If NEAT is enabled, decrement the kill timer. If any reach 0, delete the blob genome.
         # Also check for blobs that collided with the window border
         if self.enable_neat:
-            for blob, label, neural_net, genome in zip(self.blobs, self.blob_labels, self.neural_nets, self. genomes):
-                if genome.kill_timer <= 0 or (
+            for blob in self.blobs.keys():
+                if blob.genome.kill_timer <= 0 or (
                 blob.x - blob.radius <= 0 or blob.x + blob.radius >= self.width - 1
                 or blob.y - blob.radius <= 0 or blob.y + blob.radius >= self.height - 1):
                     # Penalize the genome heavily
-                    genome.fitness -= 200
+                    blob.genome.fitness -= 200
 
                     # Add the blob genome to the list of dead blobs
                     dead_blobs.add(blob)
-                    dead_blob_labels.add(label)
-                    dead_neural_nets.add(neural_net)
-                    dead_genomes.add(genome)
                 else:
-                    genome.kill_timer -= dt
+                    blob.genome.kill_timer -= dt
         
         # Remove the dead objects from the game
-        for blob, label, neural_net, genome in zip(dead_blobs, dead_blob_labels, dead_neural_nets, dead_genomes):
+        for blob in dead_blobs:
             # Penalize the genome for dying
-            genome.fitness -= 100
+            blob.genome.fitness -= 100
 
             # Delete the label from video memory
-            label.delete()
+            self.blobs[blob].delete()
             
             # Eliminate the genome
-            self.blobs.remove(blob)
-            self.blob_labels.remove(label)
-            self.neural_nets.remove(neural_net)
-            self.genomes.remove(genome)
+            del self.blobs[blob]
 
             # Update the number of blobs remaining if NEAT is enabled
             if self.enable_neat:
@@ -581,18 +545,18 @@ class GameEventHandler:
                     self.generate_food()
 
         # Check for collisions between the blob NPCs and the food
-        for blob, label, genome in zip(self.blobs, self.blob_labels, self.genomes):    
+        for blob in self.blobs.keys():    
             for food in self.foods:
                 # Keep checking the blobs until we find that a blob ate the food item
                 food_consumed = False
                 if not food_consumed and self.distance(blob.x, blob.y, food.x, food.y) < blob.radius + food.width:
                     # Update the blob's mass and its associated label
                     blob.mass += 1
-                    label.text = f"{blob.mass}"
-                    label.font_size = blob.radius * 0.6
+                    self.blobs[blob].text = f"{blob.mass}"
+                    self.blobs[blob].font_size = blob.radius * 0.6
 
                     # Reset the kill timer
-                    genome.kill_timer = 10
+                    blob.genome.kill_timer = 10
 
                     # Make sure the blob remains completely on the screen
                     self.adjust_blob_position(blob)
@@ -602,17 +566,17 @@ class GameEventHandler:
                     self.generate_food()
 
                     # Reward the genome for finding food
-                    genome.fitness += 1
+                    blob.genome.fitness += 1
 
                     # Terminate the inner loop
                     food_consumed = True
             
         # Let the neural networks make decisions for their respective blobs
-        for blob, neural_net, genome in zip(self.blobs, self.neural_nets, self.genomes):
+        for blob in self.blobs.keys():
             # Get the closest blob
             closest_blob = None
             min_blob_distance = float("Inf")
-            for other_blob in self.blobs:
+            for other_blob in self.blobs.keys():
                 distance = self.distance(blob.x, blob.y, other_blob.x, other_blob.y)
                 if blob is not other_blob and distance < min_blob_distance:
                     closest_blob = other_blob
@@ -649,7 +613,7 @@ class GameEventHandler:
                     min_food_distance = distance
                     
             # Activate the genome's neural network which will determine the blob's next move
-            output = neural_net.activate((
+            output = blob.neural_net.activate((
                 blob.x, # X-coordinate of the blob
                 blob.y, # Y-coordinate of the blob
                 #blob.x - blob.radius, # Distance from the left window border
@@ -688,10 +652,10 @@ class GameEventHandler:
         
         # Update the position of the blobs and their labels.
         # Also if NEAT is enabled, update the score so that it's the mass of the largest blob
-        for blob, label in zip(self.blobs, self.blob_labels):
+        for blob in self.blobs.keys():
             blob.update(dt)
-            label.x = blob.x
-            label.y = blob.y
+            self.blobs[blob].x = blob.x
+            self.blobs[blob].y = blob.y
 
             # If NEAT is enabled, update the score
             if self.enable_neat and blob.mass > self.score:
@@ -726,8 +690,6 @@ class GameEventHandler:
 
         # Reset the list of genomes
         self.blobs.clear()
-        self.neural_nets.clear()
-        self.genomes.clear()
 
         # Set up the genomes
         for _, genome in genomes:
@@ -747,15 +709,14 @@ class GameEventHandler:
     
 
     # Reset the game
-    def reset(self):        
+    def reset(self):      
+        # Delete the images from video memory first
+        for label in self.blobs.values():
+            label.delete()
+          
         # Clear the list of blobs and food items
         self.blobs.clear()
         self.foods.clear()
-        
-        # Delete the images from video memory, then clear the labels list
-        for label in self.blob_labels:
-            label.delete()
-        self.blob_labels.clear()
 
         # Reset score label
         self.score = 50

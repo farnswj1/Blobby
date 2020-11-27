@@ -15,12 +15,16 @@ from math import pi, sqrt
 # Blob class (inherits the pyglet circle class)
 class Blob(Circle):
     # Constructor
-    def __init__(self, mass, *args, **kwargs):
+    def __init__(self, mass, neural_net=None, genome=None, *args, **kwargs):
         # Inherit the pyglet circle
         super().__init__(radius=sqrt(10*mass/pi), *args, **kwargs)
 
         # Save the mass
         self._mass = mass
+
+        # Save the genome and neural network associated with the blob
+        self.neural_net = neural_net
+        self.genome = genome
 
         # Generate its velocity on the x-axis and y-axis
         self.velx = 0
