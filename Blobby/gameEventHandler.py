@@ -14,6 +14,7 @@ import os
 from pyglet.window import Window, key
 from pyglet.text import Label
 from .blob import Blob
+from .blobLabel import BlobLabel
 from .food import Food
 from random import randint, randrange
 from math import sqrt, pi
@@ -95,7 +96,7 @@ class GameEventHandler:
             )
 
             # Generate the player's associated label
-            self.player_label = Label(
+            self.player_label = BlobLabel(
                 f"{self.player.mass}",
                 font_name="Times New Roman",
                 font_size=self.player.radius * 0.6,
@@ -280,7 +281,7 @@ class GameEventHandler:
                 )
 
                 # Create its associated label
-                self.blobs[blob] = Label(
+                self.blobs[blob] = BlobLabel(
                     f"{random_mass}",
                     font_name="Times New Roman",
                     font_size=sqrt(10 * random_mass / pi) * 0.6,
@@ -411,7 +412,7 @@ class GameEventHandler:
 
         # If the player exists, check for collisions between the player and the other blobs
         if self.player:
-            for blob in self.blobs.keys():
+            for blob, label in self.blobs.items():
                 if self.player and self.distance(self.player.x, self.player.y, blob.x, blob.y) < self.player.radius + blob.radius:
                     # The largest of the two will consume the other.
                     # If they're the same size, delete both of them 
@@ -433,8 +434,8 @@ class GameEventHandler:
                     elif self.player.mass < blob.mass:
                         # Update the player's mass and label
                         blob.mass += self.player.mass // 2
-                        self.blobs[blob].text = f"{blob.mass}"
-                        self.blobs[blob].font_size = blob.radius * 0.6
+                        label.text = f"{blob.mass}"
+                        label.font_size = blob.radius * 0.6
                         blob.genome.kill_timer = 10 # Reset the kill timer
 
                         # Make sure the blob remains completely on the screen
@@ -442,7 +443,6 @@ class GameEventHandler:
 
                         # Delete the player and the associated label
                         # Python GC will handle the objects once the reference is removed
-                        self.player_label.delete() # Delete the label from video memory
                         self.player = None 
                         self.player_label = None
                     else:
@@ -451,20 +451,19 @@ class GameEventHandler:
 
                         # Delete the player and the associated label
                         # Python GC will handle the objects once the reference is removed
-                        self.player_label.delete() # Delete the label from video memory
                         self.player = None 
                         self.player_label = None
         
         # Check for collisions among the blobs
-        for blob_1, blob_2 in combinations(self.blobs.keys(), 2):
+        for (blob_1, label_1), (blob_2, label_2) in combinations(self.blobs.items(), 2):
             if self.distance(blob_1.x, blob_1.y, blob_2.x, blob_2.y) < blob_1.radius + blob_2.radius:
                 # The largest of the two will consume the other.
                 # If they're the same size, delete both of them
                 if blob_1.mass > blob_2.mass:
                     # Update the larger blob's mass and its associated label
                     blob_1.mass += blob_2.mass // 2
-                    self.blobs[blob_1].text = f"{blob_1.mass}"
-                    self.blobs[blob_1].font_size = blob_1.radius * 0.6
+                    label_1.text = f"{blob_1.mass}"
+                    label_1.font_size = blob_1.radius * 0.6
                     blob_1.genome.kill_timer = 10 # Reset the kill timer
 
                     # Make sure the larger blob remains completely on the screen
@@ -475,8 +474,8 @@ class GameEventHandler:
                 elif blob_1.mass < blob_2.mass:
                     # Update the blob's mass and its associated label
                     blob_2.mass += blob_1.mass // 2
-                    self.blobs[blob_2].text = f"{blob_2.mass}"
-                    self.blobs[blob_2].font_size = blob_2.radius * 0.6
+                    label_2.text = f"{blob_2.mass}"
+                    label_2.font_size = blob_2.radius * 0.6
                     blob_2.genome.kill_timer = 10 # Reset the kill timer
 
                     # Make sure the larger blob remains completely on the screen
@@ -508,9 +507,6 @@ class GameEventHandler:
         for blob in dead_blobs:
             # Penalize the genome for dying
             blob.genome.fitness -= 100
-
-            # Delete the label from video memory
-            self.blobs[blob].delete()
             
             # Eliminate the genome
             del self.blobs[blob]
@@ -545,15 +541,15 @@ class GameEventHandler:
                     self.generate_food()
 
         # Check for collisions between the blob NPCs and the food
-        for blob in self.blobs.keys():    
+        for blob, label in self.blobs.items():    
             for food in self.foods:
                 # Keep checking the blobs until we find that a blob ate the food item
                 food_consumed = False
                 if not food_consumed and self.distance(blob.x, blob.y, food.x, food.y) < blob.radius + food.width:
                     # Update the blob's mass and its associated label
                     blob.mass += 1
-                    self.blobs[blob].text = f"{blob.mass}"
-                    self.blobs[blob].font_size = blob.radius * 0.6
+                    label.text = f"{blob.mass}"
+                    label.font_size = blob.radius * 0.6
 
                     # Reset the kill timer
                     blob.genome.kill_timer = 10
@@ -652,10 +648,10 @@ class GameEventHandler:
         
         # Update the position of the blobs and their labels.
         # Also if NEAT is enabled, update the score so that it's the mass of the largest blob
-        for blob in self.blobs.keys():
+        for blob, label in self.blobs.items():
             blob.update(dt)
-            self.blobs[blob].x = blob.x
-            self.blobs[blob].y = blob.y
+            label.x = blob.x
+            label.y = blob.y
 
             # If NEAT is enabled, update the score
             if self.enable_neat and blob.mass > self.score:
@@ -710,10 +706,6 @@ class GameEventHandler:
 
     # Reset the game
     def reset(self):      
-        # Delete the images from video memory first
-        for label in self.blobs.values():
-            label.delete()
-          
         # Clear the list of blobs and food items
         self.blobs.clear()
         self.foods.clear()
@@ -736,7 +728,7 @@ class GameEventHandler:
             )
 
             # Reset the player's associated label
-            self.player_label = Label(
+            self.player_label = BlobLabel(
                 f"{self.player.mass}",
                 font_name="Times New Roman",
                 font_size=self.player.radius * 0.6,
